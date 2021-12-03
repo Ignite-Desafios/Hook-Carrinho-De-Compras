@@ -56,7 +56,8 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
       cart.forEach(async (item) => {
         if(item.id === productId){
           addProduct = false;
-          updateProductAmount({productId, amount: item.amount + 1});
+          await updateProductAmount({productId, amount: item.amount + 1});
+          return;
         }
       });
 
@@ -79,8 +80,8 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
 
   const removeProduct = (productId: number) => {
     try {
-      const newCart = cart.map((item: Product) => (item.id == productId ? undefined : item)).filter(Boolean) as Product[];
-      if(cart.length == newCart.length) {
+      const newCart = cart.map((item: Product) => (item.id === productId ? undefined : item)).filter(Boolean) as Product[];
+      if(cart.length === newCart.length) {
         toast.error("Erro na remoção do produto");
         return
       }
@@ -104,19 +105,20 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
         return;
       }
       const stockProduct = await api.get("/stock/" + productId).then(res => (res.data)).catch(err => {})
-      if(!stockProduct) {
+      if(!stockProduct || stockProduct.amount == 0) {
         toast.error('Erro na alteração de quantidade do produto');
-        return
+        throw new Error("Erro na alteração de quantidade do produto");
       }
       
       const itensInStock = stockProduct.amount;
+      if(amount > itensInStock){
+        toast.error('Quantidade solicitada fora de estoque');
+        throw new Error('Quantidade solicitada fora de estoque');
+      }
 
       const newCart = cart.map(item => {
-        if(item.id == productId) {
-          if(amount > itensInStock){
-            throw new Error("Maxímo de produtos no estoque atingido")
-          }
-
+        if(item.id === productId) {
+          
           item.amount = amount;
           return item
         }
@@ -127,7 +129,7 @@ export function CartProvider({ children }: CartProviderProps): JSX.Element {
       setCart(newCart);
       return newCart;
       
-    } catch {
+    } catch(err) {
       toast.error('Quantidade solicitada fora de estoque');
     }
   };
